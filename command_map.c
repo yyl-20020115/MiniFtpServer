@@ -8,9 +8,6 @@
 #include "priv_sock.h"
 #include "strutil.h"
 #include "trans_ctrl.h"
-#define GREETINGS "(FtpServer 1.0)"
-#define UNKNOWN_CMD "Unknown command."
-#define UNIMPL_CMD "Unimplement command."
 
 typedef struct _ftpcmd_t
 {

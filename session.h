@@ -9,7 +9,7 @@ typedef struct _Session_t
     char command[MAX_COMMAND];
     char com[MAX_COMMAND];
     char args[MAX_COMMAND];
-
+    void* handle;
     uint32_t ip;
     char username[128];
 
@@ -40,7 +40,12 @@ typedef struct _Session_t
 }Session_t;
 
 void session_init(Session_t *session);
+void session_free(Session_t* session);
 
 void session_reset_command(Session_t *session);
+
+void ftp_reply(Session_t* session, int status, const char* text);
+void ftp_lreply(Session_t* session, int status, const char* text);
+
 
 #endif  /*_SESSION_H_*/

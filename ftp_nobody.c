@@ -53,7 +53,7 @@ int handle_nobody(Session_t *session)
 #endif
     int r = 0;
     char cmd = 0;
-    for(;;)
+    while(!should_exit())
     {
         r = priv_sock_recv_cmd(session->nobody_fd,&cmd);
         switch (cmd)
@@ -83,4 +83,5 @@ int handle_nobody(Session_t *session)
             return EXIT_FAILURE;
         }
     }
+    return EXIT_SUCCESS;
 }

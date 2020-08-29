@@ -430,7 +430,7 @@ static int statbuf_get_perms(const char* buf, int szbuf, struct stat *sbuf)
     int sl = (int)strlen(buf);
     int dt = szbuf - sl;
     
-    return (dt > strlen(perms)) ? snprintf((buf + sl), dt, perms) : 0;    
+    return (dt > strlen(perms)) ? snprintf((char* const)(buf + sl), dt, perms) : 0;
 }
 
 static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
@@ -439,7 +439,7 @@ static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
     time_t ct = sbuf->st_ctime;
     if ((ptm = localtime(&ct)) == NULL) {
         exit_with_error("localtime");
-        return NULL;
+        return -1;
     }
     const char *format = "%b %e %hh:%mm";
     int r = 0;
@@ -447,7 +447,7 @@ static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
     int dt = szbuf - sl;
 
     //TODO:
-    if((r=strftime((buf+sl), dt, format, ptm)) == 0)
+    if((r=strftime((char*)(buf+sl), dt, format, ptm)) == 0)
     {
         exit_with_error("strftime error\n");
     }
@@ -464,7 +464,7 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
         if (readlink(name, linkfile, sizeof linkfile) == -1) {
             exit_with_error("readlink");
         }
-        return snprintf((buf + strlen(buf)), szbuf, "%s -> %s", name, linkfile);
+        return snprintf((char* const)(buf + strlen(buf)), szbuf, "%s -> %s", name, linkfile);
     }
     else
 #endif
@@ -472,7 +472,7 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
         int sl = strlen(buf);
         int dt = szbuf - sl;
 
-        return snprintf((buf + sl), dt, name);
+        return snprintf((char* const)(buf + sl), dt, name);
     }
 }
 
@@ -480,14 +480,14 @@ static int statbuf_get_user_info(const char* buf, int szbuf, struct stat *sbuf)
 {
     int sl = strlen(buf);
     int dt = szbuf - sl;
-    return dt<=23 ? 0: snprintf((buf + sl), dt, " %3d %8d %8d ", sbuf->st_nlink, sbuf->st_uid, sbuf->st_gid);
+    return dt<=23 ? 0: snprintf((char* const)(buf + sl), dt, " %3d %8d %8d ", sbuf->st_nlink, sbuf->st_uid, sbuf->st_gid);
 }
 
 static int statbuf_get_size(const char* buf, int szbuf, struct stat *sbuf)
 {
     int sl = strlen(buf);
     int dt = szbuf - sl;
-    return dt<=9 ? 0 : snprintf((buf+sl), dt, "%8lu ", (unsigned long)sbuf->st_size);
+    return dt<=9 ? 0 : snprintf((char* const)(buf+sl), dt, "%8lu ", (unsigned long)sbuf->st_size);
 }
 
 static int is_port_active(Session_t *session)

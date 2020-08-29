@@ -4,7 +4,8 @@
 #include "ftp_nobody.h"
 #include "priv_sock.h"
 #include "configure.h"
-void session_free(Session_t* session) {
+void session_free(Session_t* session)
+{
     if (session != 0) {
         s_close(&session->peer_fd);
         s_close(&session->nobody_fd);
@@ -71,9 +72,9 @@ static DWORD WINAPI private_thread(void* lp)
     }
     return r;
 }
-int start_private(Session_t* session)
+int start_private(Session_t* session, void** ph)
 {
     int tid = -1;
-    CreateThread(NULL, 0, private_thread, session, 0, (DWORD*)&tid);    
+    *ph = CreateThread(NULL, 0, private_thread, session, 0, (DWORD*)&tid);    
     return tid;
 }

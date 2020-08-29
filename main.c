@@ -3,9 +3,52 @@
 #include "session.h"
 #include "configure.h"
 #include "parse_conf.h"
-#include "ftp_assist.h"
 #include "ftp_nobody.h"
 #include "priv_sock.h"
+#include "ftp_codes.h"
+void print_conf()
+{
+    printf("tunable_pasv_enable=%d\n", tunable_pasv_enable);
+    printf("tunable_port_enable=%d\n", tunable_port_enable);
+
+    printf("tunable_listen_port=%u\n", tunable_listen_port);
+    printf("tunable_max_clients=%u\n", tunable_max_clients);
+    printf("tunable_max_per_ip=%u\n", tunable_max_per_ip);
+    printf("tunable_accept_timeout=%u\n", tunable_accept_timeout);
+    printf("tunable_connect_timeout=%u\n", tunable_connect_timeout);
+    printf("tunable_idle_session_timeout=%u\n", tunable_idle_session_timeout);
+    printf("tunable_data_connection_timeout=%u\n", tunable_data_connection_timeout);
+    printf("tunable_local_umask=0%o\n", tunable_local_umask);
+    printf("tunable_upload_max_rate=%u\n", tunable_upload_max_rate);
+    printf("tunable_download_max_rate=%u\n", tunable_download_max_rate);
+
+    if (tunable_listen_address == NULL)
+        printf("tunable_listen_address=NULL\n");
+    else
+        printf("tunable_listen_address=%s\n", tunable_listen_address);
+}
+
+#define H1 "There are too many connected users, please try later."
+#define H2 "There are too many connections from your internet address."
+
+void limit_num_clients(Session_t* session)
+{
+    if (tunable_max_clients > 0 && session->curr_clients > tunable_max_clients)
+    {
+        //421 There are too many connected users, please try later.
+        ftp_reply(session, FTP_TOO_MANY_USERS, H1);
+        exit_with_error(H1);
+        return;
+    }
+
+    if (tunable_max_per_ip > 0 && session->curr_ip_clients > tunable_max_per_ip)
+    {
+        //421 There are too many connections from your internet address.
+        ftp_reply(session, FTP_IP_LIMIT, H2);
+        exit_with_error(H2);
+        return;
+    }
+}
 
 int s_timeout() {
 #ifndef _WIN32
@@ -60,7 +103,7 @@ int exit_with_message(const char* format,...)
 
     return exit_with_code(EXIT_SUCCESS);
 }
-int start_private(Session_t* l_sess);
+int start_private(Session_t* l_sess, void** ph);
 
 #ifndef _WIN32
 static int session_thread(void* lp)
@@ -72,29 +115,38 @@ static DWORD WINAPI session_thread(void* lp)
     Session_t* session = (Session_t*)lp;
 
     limit_num_clients(session);
-
-    if (start_private(session) < 0) {
+    void* h = 0;
+    if (start_private(session,&h) < 0) {
         r = exit_with_error("failed to start private thread");
     }
     if (r >= 0) {
         priv_sock_set_nobody_context(session);
         //r = 0 if correctly exits
         r = handle_nobody(session);
+        if (h != INVALID_HANDLE_VALUE) {
+#ifndef _WIN32
+            //
+#else
+            //waiting for private thread to quit
+            WaitForSingleObject(h, INFINITE);
+            CloseHandle(h);
+#endif
+        }
     }
+
     if (session != 0) {
-        s_close(&session->peer_fd);
-        free(session);
+        session_free(session);
     }
 
     return r;
 }
-tid_t start_session(Session_t* session)
+tid_t start_session(Session_t* session, void** ph)
 {
     tid_t tid = -1;
 #ifndef _WIN32
     //PTHREAD
 #else
-    CreateThread(NULL, 0, session_thread, session, 0, (DWORD*)&tid);
+    *ph = CreateThread(NULL, 0, session_thread, session, 0, (DWORD*)&tid);
 #endif
     return tid;
 }
@@ -107,8 +159,6 @@ void exit_loop() {
 
 int main_loop() 
 {
-    init_hash();
-
     listen_fd = tcp_server(tunable_listen_address, tunable_listen_port);
 
     for(;;)
@@ -123,7 +173,7 @@ int main_loop()
             exit_with_error("accept_failed");
             break;
         }
-
+        
         uint32_t ip = addr.sin_addr.s_addr;
         Session_t* session = (Session_t*)malloc(sizeof(Session_t));
 
@@ -139,24 +189,20 @@ int main_loop()
             session->peer_fd = peer_fd;
             session->ip = ip;
 
-            add_clients_to_hash(session, ip);
-            
-            tid_t tid = start_session(session);
+            void* handle = 0;
+            tid_t tid = start_session(session,&handle);
             if (tid>=0)
             {
-                add_tid_ip_to_hash(tid, ip);
+                session->handle = handle;
             }
             else {
-                s_close(&peer_fd);
-                free(session);
+                session_free(session);
                 exit_with_error("unable to start session!");
                 break;
             }
         }
     }
     s_close(&listen_fd);
-    free_hash();
-
     return code;
 }
 

@@ -365,7 +365,7 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
             return -1;
         }
         else if(nread == 0)
-            return n - nleft;
+            return (n - nleft);
 
         bufp += nread;
         nleft -= nread;

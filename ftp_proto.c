@@ -8,8 +8,8 @@
 
 int handle_proto(Session_t *session)
 {
-    ftp_reply(session, FTP_GREET, "(FtpServer 1.0)");
-    for (;;)
+    ftp_reply(session, FTP_GREET, GREETINGS);
+    while(!should_exit())
     {
         session_reset_command(session);
 
@@ -28,7 +28,7 @@ int handle_proto(Session_t *session)
         else if (ret == 0)
         {
             //normally exits
-            return EXIT_SUCCESS;
+            break;
         }
         str_trim_crlf(session->command);
         str_split(session->command, session->com, session->args, ' ');
@@ -40,7 +40,8 @@ int handle_proto(Session_t *session)
         }
         else if (r == QUIT_SUCCESS) //here QUIT_SUCCESS means quit
         {
-            return EXIT_SUCCESS;
+            break;
         }
     }
+    return EXIT_SUCCESS;
 }

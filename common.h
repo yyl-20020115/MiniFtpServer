@@ -57,5 +57,10 @@ int exit_with_error(const char* format, ...);
 int exit_with_message(const char* format, ...);
 int s_close(SOCKET* s);
 int s_timeout();
+
 #define QUIT_SUCCESS (-1)
+#define GREETINGS "(FtpServer 1.0)"
+#define UNKNOWN_CMD "Unknown command."
+#define UNIMPL_CMD "Unimplement command."
+
 #endif
