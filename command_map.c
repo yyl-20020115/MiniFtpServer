@@ -240,7 +240,7 @@ int do_port(Session_t* session)
 int do_pasv(Session_t* session)
 {
     char ip[16] = { 0 };
-    get_local_ip(ip);
+    get_local_ip(ip,sizeof(ip));
 
     priv_sock_send_cmd(session->proto_fd, PRIV_SOCK_PASV_LISTEN);
     

@@ -52,7 +52,7 @@ int privop_pasv_active(Session_t *session)
 int privop_pasv_listen(Session_t *session)
 {
     char ip[16] = {0};
-    get_local_ip(ip);
+    get_local_ip(ip, sizeof(ip));
     SOCKET listenfd = tcp_server(ip, 20);
     session->listen_fd = listenfd;
 

@@ -54,6 +54,9 @@
     <ClCompile Include="cvector.c">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="session_manager.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="command_map.h">
@@ -102,6 +105,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="cvector.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="session_manager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

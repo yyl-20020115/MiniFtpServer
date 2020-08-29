@@ -152,6 +152,7 @@
     <ClCompile Include="priv_command.c" />
     <ClCompile Include="priv_sock.c" />
     <ClCompile Include="session.c" />
+    <ClCompile Include="session_manager.c" />
     <ClCompile Include="strutil.c" />
     <ClCompile Include="sysutil.c" />
     <ClCompile Include="trans_data.c" />
@@ -170,6 +171,7 @@
     <ClInclude Include="priv_command.h" />
     <ClInclude Include="priv_sock.h" />
     <ClInclude Include="session.h" />
+    <ClInclude Include="session_manager.h" />
     <ClInclude Include="strutil.h" />
     <ClInclude Include="sysutil.h" />
     <ClInclude Include="trans_ctrl.h" />

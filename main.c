@@ -6,6 +6,7 @@
 #include "ftp_nobody.h"
 #include "priv_sock.h"
 #include "ftp_codes.h"
+#include "session_manager.h"
 void print_conf()
 {
     printf("tunable_pasv_enable=%d\n", tunable_pasv_enable);
@@ -75,7 +76,8 @@ int should_exit()
 {
     return quit;
 }
-int exit_with_code(int c) {
+int exit_with_code(int c) 
+{
     return (code = c);
 }
 int exit_with_error(const char* format, ...)
@@ -154,6 +156,8 @@ static SOCKET listen_fd = 0;
 
 int main_loop(const char* listen_address, unsigned int listen_port)
 {
+    init_session_manager();
+
     listen_fd = tcp_server(listen_address, listen_port);
 
     while (!should_exit())
@@ -188,7 +192,6 @@ int main_loop(const char* listen_address, unsigned int listen_port)
             tid_t tid = start_session(session, &handle);
             if (tid >= 0)
             {
-                //TODO: need to wait thread when exit
                 session->handle = handle;
             }
             else
@@ -200,6 +203,11 @@ int main_loop(const char* listen_address, unsigned int listen_port)
         }
     }
     s_close(&listen_fd);
+
+    wait_sessions();
+
+    destroy_session_manager();
+
     return code;
 }
 #ifndef _WIN32
@@ -223,7 +231,11 @@ int start_loop() {
     if (handle != INVALID_HANDLE_VALUE) {
         while (!should_exit())
         {
-            //sleep
+#ifndef _WIN32
+            usleep(10*1000);
+#else
+            Sleep(10);
+#endif
         }
         WaitForSingleObject(handle, INFINITE);
 
@@ -232,11 +244,32 @@ int start_loop() {
     return 0;
 }
 #ifndef AS_LIBRARY
+int startup_socket() {
+#ifndef _WIN32
+    return 0;
+#else
+    WSADATA wsa = { 0 };
+    return WSAStartup(MAKEWORD(2, 2 ), &wsa) == 0;
+#endif
+}
+int cleanup_socket() {
+#ifndef _WIN32
+    return 0;
+#else
+    return WSACleanup();
+#endif
+}
 int main(int argc, const char* argv[])
 {
+    int r = 0;
     load_config("ftpserver.conf");
     print_conf();
+    
+    startup_socket();
 
-    return start_loop();
+    r = start_loop();
+
+    cleanup_socket();
+    return r;
 }
 #endif

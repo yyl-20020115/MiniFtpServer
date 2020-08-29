@@ -8,8 +8,21 @@
 #include "trans_ctrl.h"
 
 ssize_t sendfile(SOCKET out_fd, int in_fd, off_t* offset, size_t count) {
-    //TODO:
-    return 0;
+    int r = 0, d = 0;
+    ssize_t n = 0;
+    char buffer[4096] = { 0 };
+    if (offset != 0) {
+        _lseeki64(in_fd, *offset, SEEK_SET);
+    }
+    for (size_t i = 0; i < count; i+=sizeof(buffer)) {
+        r = _read(in_fd, buffer, sizeof(buffer));
+        d = send(out_fd, buffer, r, 0);
+        n += d;
+        if (r < sizeof(buffer)) {
+            break;
+        }
+    }
+    return n;
 }
 
 static int statbuf_get_perms(const char* buf, int szbuf,struct stat *sbuf);
@@ -26,6 +39,8 @@ static void get_pasv_data_fd(Session_t *session);
 
 static void trans_list_common(Session_t *session, int list);
 static int get_trans_data_fd(Session_t *session);
+
+#ifndef _WIN32
 void limit_curr_rate(Session_t* sess, int nbytes, int is_upload)
 {
     int curr_time_sec = get_curr_time_sec();
@@ -76,7 +91,7 @@ void limit_curr_rate(Session_t* sess, int nbytes, int is_upload)
     sess->start_time_sec = get_curr_time_sec();
     sess->start_time_usec = get_curr_time_usec();
 }
-
+#endif
 
 int download_file(Session_t *session)
 {
@@ -164,7 +179,9 @@ int download_file(Session_t *session)
             break;
         }
         nleft -= nwrite;
+#ifndef _WIN32
         limit_curr_rate(session, nwrite, 0);
+#endif
     }
     if(nleft == 0)
         flag = 0;
@@ -290,7 +307,9 @@ int upload_file(Session_t *session, int appending)
             flag = 2;
             break;
         }
+#ifndef _WIN32
         limit_curr_rate(session, nread, 1);
+#endif
     }
 #ifndef _WIN32
     if (unlock_file(fd) == -1) {
@@ -572,14 +591,14 @@ DIR* opendir(const char* name)
     HANDLE hFind = FindFirstFileA(namebuf, &FindData);
     if (hFind == INVALID_HANDLE_VALUE)
     {
-        printf("FindFirstFile failed (%d)\n", GetLastError());
+        exit_with_error("FindFirstFile failed (%d)\n", GetLastError());
         return 0;
     }
 
     dir = (DIR*)malloc(sizeof(DIR));
     if (!dir)
     {
-        printf("DIR memory allocate fail\n");
+        exit_with_error("DIR memory allocate fail\n");
         return 0;
     }
 
@@ -594,9 +613,8 @@ struct dirent* readdir(DIR* d)
     if (d == 0) return 0;
 
     int i = 0;
-    BOOL bf = FALSE;
     WIN32_FIND_DATAA FileData = { 0 }; 
-    bf = FindNextFileA(d->hFind, &FileData);
+    BOOL bf = FindNextFileA(d->hFind, &FileData);
     //fail or end  
     if (!bf) return 0;
 

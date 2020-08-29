@@ -9,9 +9,9 @@ static struct timeval tv = {0, 0};
 #ifdef WIN32
 int gettimeofday(struct timeval* tp, void* tzp)
 {
-    time_t clock;
-    struct tm tm;
-    SYSTEMTIME wtm;
+    time_t clock = 0;
+    struct tm tm = { 0 };
+    SYSTEMTIME wtm = { 0 };
     GetLocalTime(&wtm);
     tm.tm_year = wtm.wYear - 1900;
     tm.tm_mon = wtm.wMonth - 1;
@@ -38,11 +38,7 @@ int get_curr_time_usec()
 {
     return tv.tv_usec;
 }
-int nanosleep(const struct timespec* req, struct timespec* rem)
-{
-    //TODO:
-    return 0;
-}
+#ifndef _WIN32
 
 int n_sleep(double t)
 {
@@ -62,6 +58,7 @@ int n_sleep(double t)
 
     return ret;
 }
+#endif
 
 SOCKET tcp_client(unsigned int port)
 {
@@ -85,7 +82,7 @@ SOCKET tcp_client(unsigned int port)
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
         char ip[16] = {0};
-        get_local_ip(ip);
+        get_local_ip(ip, sizeof(ip));
         addr.sin_addr.s_addr = inet_addr(ip);
 
         if (bind(sockfd, (struct sockaddr*)&addr, sizeof addr) == -1)
@@ -100,8 +97,7 @@ SOCKET tcp_client(unsigned int port)
 }
 int inet_aton(const char* cp, struct in_addr* inp)
 {
-    //TODO:
-    return 0;
+    return inet_pton(PF_INET, cp, inp);
 }
 SOCKET tcp_server(const char *host, unsigned short port)
 {
@@ -152,16 +148,16 @@ SOCKET tcp_server(const char *host, unsigned short port)
     }
     return listenfd;
 }
-int get_local_ip(char *ip)
+int get_local_ip(char *ip, size_t count)
 {
-    SOCKET sockfd; 
+#ifndef _WIN32
+    SOCKET sockfd;
     if((sockfd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
     {
         exit_with_error("socket");
         s_close(&sockfd);
         return -1;
     }
-#ifndef _WIN32
 
     struct ifreq req;
 
@@ -176,19 +172,21 @@ int get_local_ip(char *ip)
     strcpy(ip, inet_ntoa(host->sin_addr));
     s_close(&sockfd);
 #else
-
+    strncpy(ip, "0.0.0.0", count);
 #endif
     return 1;
 }
 
 void activate_nonblock(SOCKET fd)
 {
-    //TODO:
+    u_long flags = 1;
+    ioctlsocket(socket, FIONBIO, &flags);
 }
 
 void deactivate_nonblock(SOCKET fd)
 {
-    //TODO:
+    u_long flags = 0;
+    ioctlsocket(socket, FIONBIO, &flags);
 }
 
 int read_timeout(SOCKET fd, unsigned int wait_seconds)

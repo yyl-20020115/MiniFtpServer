@@ -17,7 +17,7 @@ int unlock_file(int fd);
 SOCKET tcp_client(unsigned int port);
 SOCKET tcp_server(const char *host, unsigned short port);
 
-int get_local_ip(char *ip);
+int get_local_ip(char *ip,size_t count);
 
 void activate_nonblock(SOCKET fd);
 void deactivate_nonblock(SOCKET fd);
