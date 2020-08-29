@@ -71,35 +71,34 @@ int s_close(SOCKET* s) {
 }
 static int quit = 0;
 static int code = 0;
-int should_exit() 
+int should_exit()
 {
     return quit;
 }
 int exit_with_code(int c) {
     return (code = c);
 }
-int exit_with_error(const char* format, ...) 
+int exit_with_error(const char* format, ...)
 {
-        char buffer[1024] = { 0 };
-        va_list arg;
-        int done;
+    char buffer[1024] = { 0 };
+    va_list arg;
+    int done;
 
-        va_start(arg, format);
-        done = vsnprintf(buffer,sizeof(buffer), format, arg);
-        va_end(arg); 
-        
-        fprintf(stderr, buffer);
+    va_start(arg, format);
+    done = vsnprintf(buffer, sizeof(buffer), format, arg);
+    va_end(arg);
 
-        return exit_with_code(EXIT_FAILURE);
+    fprintf(stderr, buffer);
+
+    return exit_with_code(EXIT_FAILURE);
 }
-int exit_with_message(const char* format,...)
+int exit_with_message(const char* format, ...)
 {
-        va_list arg;
-        int done;
-
-        va_start(arg, format);
-        done = vprintf(format, arg);
-        va_end(arg);
+    va_list arg;
+    int done = 0;
+    va_start(arg, format);
+    done = vprintf(format, arg);
+    va_end(arg);
 
     return exit_with_code(EXIT_SUCCESS);
 }
@@ -108,20 +107,22 @@ int start_private(Session_t* l_sess, void** ph);
 #ifndef _WIN32
 static int session_thread(void* lp)
 #else
-static DWORD WINAPI session_thread(void* lp) 
+static DWORD WINAPI session_thread(void* lp)
 #endif
 {
     int r = 0;
+    void* h = 0;
+    tid_t t = 0;
+
     Session_t* session = (Session_t*)lp;
 
     limit_num_clients(session);
-    void* h = 0;
-    if (start_private(session,&h) < 0) {
-        r = exit_with_error("failed to start private thread");
+    if ((t = start_private(session, &h)) < 0) 
+    {
+        exit_with_error("failed to start private thread");
     }
-    if (r >= 0) {
+    if (t >= 0) {
         priv_sock_set_nobody_context(session);
-        //r = 0 if correctly exits
         r = handle_nobody(session);
         if (h != INVALID_HANDLE_VALUE) {
 #ifndef _WIN32
@@ -134,9 +135,7 @@ static DWORD WINAPI session_thread(void* lp)
         }
     }
 
-    if (session != 0) {
-        session_free(session);
-    }
+    session_free(session);
 
     return r;
 }
@@ -146,26 +145,22 @@ tid_t start_session(Session_t* session, void** ph)
 #ifndef _WIN32
     //PTHREAD
 #else
-    *ph = CreateThread(NULL, 0, session_thread, session, 0, (DWORD*)&tid);
+    * ph = CreateThread(NULL, 0, session_thread, session, 0, (DWORD*)&tid);
 #endif
     return tid;
 }
 
 static SOCKET listen_fd = 0;
 
-void exit_loop() {
-    s_close(&listen_fd);
-}
-
-int main_loop() 
+int main_loop(const char* listen_address, unsigned int listen_port)
 {
-    listen_fd = tcp_server(tunable_listen_address, tunable_listen_port);
+    listen_fd = tcp_server(listen_address, listen_port);
 
-    for(;;)
+    while (!should_exit())
     {
         struct sockaddr_in addr = { 0 };
         SOCKET peer_fd = accept_timeout(listen_fd, &addr, tunable_accept_timeout);
-        
+
         if (peer_fd == INVALID_SOCKET && s_timeout()) {
             continue;
         }
@@ -173,7 +168,7 @@ int main_loop()
             exit_with_error("accept_failed");
             break;
         }
-        
+
         uint32_t ip = addr.sin_addr.s_addr;
         Session_t* session = (Session_t*)malloc(sizeof(Session_t));
 
@@ -190,12 +185,14 @@ int main_loop()
             session->ip = ip;
 
             void* handle = 0;
-            tid_t tid = start_session(session,&handle);
-            if (tid>=0)
+            tid_t tid = start_session(session, &handle);
+            if (tid >= 0)
             {
+                //TODO: need to wait thread when exit
                 session->handle = handle;
             }
-            else {
+            else
+            {
                 session_free(session);
                 exit_with_error("unable to start session!");
                 break;
@@ -205,12 +202,41 @@ int main_loop()
     s_close(&listen_fd);
     return code;
 }
+#ifndef _WIN32
+int loop_thread(void* lp)
+#else
+DWORD WINAPI loop_thread(void* lp) 
+#endif
+{
+    return main_loop(tunable_listen_address, tunable_listen_port);
+}
 
+void exit_loop() {
+    s_close(&listen_fd);
+    quit = 1;
+}
+
+int start_loop() {
+    DWORD ec = -1;
+    DWORD tid = -1;
+    HANDLE handle = CreateThread(NULL, 0, &loop_thread, 0, 0, &tid);
+    if (handle != INVALID_HANDLE_VALUE) {
+        while (!should_exit())
+        {
+            //sleep
+        }
+        WaitForSingleObject(handle, INFINITE);
+
+        return GetExitCodeThread(handle, &ec) ? ec : -1;
+    }
+    return 0;
+}
 #ifndef AS_LIBRARY
 int main(int argc, const char* argv[])
 {
     load_config("ftpserver.conf");
     print_conf();
-    return main_loop();
+
+    return start_loop();
 }
 #endif
