@@ -206,7 +206,7 @@ int download_file(Session_t *session)
         filesize -= offset;
     }
 
-    if (_lseeki64(fd, offset, SEEK_SET) == -1) {
+    if (_lseeki64(fd, offset, SEEK_SET) == -1LL) {
         exit_with_error("lseek");
         return EXIT_SUCCESS;
     }
@@ -328,14 +328,14 @@ int upload_file(Session_t *session, int appending)
 #ifndef _WIN32
         ftruncate(fd, offset);
 #endif
-        if (_lseeki64(fd, offset, SEEK_SET) == -1) {
+        if (_lseeki64(fd, offset, SEEK_SET) == -1LL) {
             exit_with_error("lseek");
             return EXIT_SUCCESS;
         }
     }
     else //APPE
     {
-        if (_lseek(fd, 0, SEEK_END) == -1) {
+        if (_lseeki64(fd, 0, SEEK_END) == -1LL) {
             exit_with_error("lseek");
             return EXIT_SUCCESS;
         }
