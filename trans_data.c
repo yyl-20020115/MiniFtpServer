@@ -643,8 +643,10 @@ struct dirent* readdir(DIR* d)
 } 
 int closedir(DIR* d)
 {
-    if (d == 0) return -1; 
-    CloseHandle(d->hFind);    
+    if (d == 0) return -1;
+    if (d->hFind != INVALID_HANDLE_VALUE) {
+        FindClose(d->hFind);
+    }
     free(d);
     return 0;
 }

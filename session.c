@@ -74,7 +74,6 @@ static DWORD WINAPI private_thread(void* lp)
     int r = 0;
     Session_t* session = (Session_t*)lp;
     if (session != 0) {
-        priv_sock_init(session);
         priv_sock_set_proto_context(session);
         r = handle_proto(session);
         priv_sock_close(session);

@@ -56,6 +56,7 @@ int socketpair(int family, int type, int protocol, SOCKET recv[2]) {
     
     memset(&addr_info, 0, sizeof(addr_info));
     addr_info.ai_family = family;
+    addr_info.ai_flags = AI_PASSIVE;
     addr_info.ai_socktype = type;
     addr_info.ai_protocol = protocol;
     if (AF_INET6 == family)
@@ -64,10 +65,10 @@ int socketpair(int family, int type, int protocol, SOCKET recv[2]) {
     }
     else 
     {
-        family = AF_INET;
         address = "127.0.0.1";
     }
-    if (0 == getaddrinfo(address, "0", &addr_info, &p_addrinfo)) {
+    if (0 == getaddrinfo(address, 0, &addr_info, &p_addrinfo)) 
+    {
         if (SOCK_STREAM == type)
             result = __stream_socketpair(p_addrinfo, recv);   //use for tcp
         freeaddrinfo(p_addrinfo);
@@ -79,7 +80,13 @@ int socketpair(int family, int type, int protocol, SOCKET recv[2]) {
 void priv_sock_init(Session_t *session)
 {
     SOCKET fds[2] = { 0 };
-    if (socketpair(PF_UNIX, SOCK_STREAM, 0, fds) == -1) {
+    if (socketpair(
+#ifndef _WIN32
+        PF_UNIX
+#else
+        AF_INET
+#endif
+        , SOCK_STREAM, 0, fds) == -1) {
         exit_with_error("socketpair failed");
         return;
     }

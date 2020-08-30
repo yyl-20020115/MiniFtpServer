@@ -58,11 +58,7 @@ void limit_num_clients(Session_t* session)
 }
 
 int s_timeout() {
-#ifndef _WIN32
-    return errno == ETIMEDOUT
-#else
-    return WSAGetLastError() == WSA_WAIT_TIMEOUT;
-#endif
+    return errno == ETIMEDOUT;
 }
 int s_close(SOCKET* s) {
     int r = 0;
@@ -125,12 +121,12 @@ static DWORD WINAPI session_thread(void* lp)
     Session_t* session = (Session_t*)lp;
 
     limit_num_clients(session);
+    priv_sock_init(session);
     if ((t = start_private(session, &h)) < 0) 
     {
         exit_with_error("failed to start private thread");
     }
     if (t >= 0) {
-        priv_sock_set_nobody_context(session);
         r = handle_nobody(session);
         if (h != INVALID_HANDLE_VALUE) {
 #ifndef _WIN32
@@ -179,7 +175,7 @@ DWORD WINAPI loop_thread(void* lp)
             continue;
         }
         else if (peer_fd == INVALID_SOCKET) {
-            exit_with_error("accept_failed");
+            exit_with_error("accept_failed or threaad exited");
             break;
         }
 
@@ -271,6 +267,9 @@ BOOL WINAPI ctrlhandler(DWORD fdwctrltype)
     switch (fdwctrltype)
     {
     case CTRL_C_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
         exit_loop();
         return TRUE;
     default:
@@ -293,7 +292,7 @@ int main(int argc, const char* argv[])
 
     int r = 0;
     load_config("ftpserver.conf");
-    print_conf();
+    //print_conf();
     {
         if (startup_socket())
         {

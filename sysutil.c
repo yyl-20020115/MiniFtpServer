@@ -263,7 +263,7 @@ SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_sec
 
         do
         {
-            ret = select(fd + 1, &accept_fd, NULL, NULL, &timeout);
+            ret = select(accept_fd.fd_count, &accept_fd, NULL, NULL, &timeout);
         }while(ret < 0 && errno == EINTR);
         if(ret == -1)
             return -1;
@@ -349,7 +349,7 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
     size_t nleft = n;
     ssize_t nread = 0;
     char *bufp = (char*)buf;
-
+    int e = 0;
     while(nleft > 0)
     {
 #ifndef _WIN32
@@ -358,7 +358,13 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
         if((nread = recv(fd, bufp, nleft,0)) < 0)
 #endif
         {
-            if(errno == EINTR)
+            if(
+#ifndef _WIN32
+                errno == EINTR
+#else
+                (e = WSAGetLastError()) == WSAEINTR
+#endif
+                )
                 continue;
             return -1;
         }
@@ -378,7 +384,7 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
     size_t nleft = n;
     ssize_t nwrite =0;
     char *bufp = (char*)buf;
-
+    int e = 0;
     while(nleft > 0)
     {
 #ifndef _WIN32
@@ -387,7 +393,13 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
         if ((nwrite = send(fd, bufp, nleft, 0)) < 0)
 #endif
         {
-            if (errno == EINTR)
+            if (
+#ifndef _WIN32
+                errno == EINTR
+#else
+                (e=WSAGetLastError()) == WSAEINTR
+#endif
+                )
                 continue;
             return -1;
         }
