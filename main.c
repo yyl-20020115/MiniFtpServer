@@ -1,3 +1,9 @@
+#ifdef _WIN32
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
 #include "common.h"
 #include "sysutil.h"
 #include "session.h"
@@ -154,11 +160,15 @@ tid_t start_session(Session_t* session, void** ph)
 
 static SOCKET listen_fd = 0;
 
-int main_loop(const char* listen_address, unsigned int listen_port)
+#ifndef _WIN32
+int loop_thread(void* lp)
+#else
+DWORD WINAPI loop_thread(void* lp) 
+#endif
 {
     init_session_manager();
 
-    listen_fd = tcp_server(listen_address, listen_port);
+    listen_fd = tcp_server(tunable_listen_address, tunable_listen_port);
 
     while (!should_exit())
     {
@@ -210,14 +220,6 @@ int main_loop(const char* listen_address, unsigned int listen_port)
 
     return code;
 }
-#ifndef _WIN32
-int loop_thread(void* lp)
-#else
-DWORD WINAPI loop_thread(void* lp) 
-#endif
-{
-    return main_loop(tunable_listen_address, tunable_listen_port);
-}
 
 void exit_loop() {
     s_close(&listen_fd);
@@ -249,27 +251,57 @@ int startup_socket() {
     return 0;
 #else
     WSADATA wsa = { 0 };
-    return WSAStartup(MAKEWORD(2, 2 ), &wsa) == 0;
+    int r = WSAStartup(MAKEWORD(2, 2), &wsa);
+    return r == 0;
 #endif
 }
 int cleanup_socket() {
 #ifndef _WIN32
     return 0;
 #else
-    return WSACleanup();
+    int r = WSACleanup();
+    return r == 0;
 #endif
 }
+
+#ifdef _WIN32
+
+BOOL WINAPI ctrlhandler(DWORD fdwctrltype)
+{
+    switch (fdwctrltype)
+    {
+    case CTRL_C_EVENT:
+        exit_loop();
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
+#endif
+
 int main(int argc, const char* argv[])
 {
+#ifdef _WIN32
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    //_CrtSetBreakAlloc(120);
+#endif
+    
+#ifdef _WIN32
+    SetConsoleCtrlHandler(ctrlhandler, TRUE);
+#endif
+
     int r = 0;
     load_config("ftpserver.conf");
     print_conf();
-    
-    startup_socket();
-
-    r = start_loop();
-
-    cleanup_socket();
+    {
+        if (startup_socket())
+        {
+            r = start_loop();
+            cleanup_socket();
+        }
+    }
+    free_config();
     return r;
 }
 #endif

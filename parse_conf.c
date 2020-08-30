@@ -6,8 +6,8 @@ static void load_setting(const char *setting);
 
 static struct bool_setting
 {
-    const char *p_setting_name;
-    int *p_variable;
+    const char* p_setting_name;
+    int* p_variable;
 }
 bool_array[] =
 {
@@ -18,8 +18,8 @@ bool_array[] =
 
 static struct uint_setting
 {
-    const char *p_setting_name;
-    unsigned int *p_variable;
+    const char* p_setting_name;
+    unsigned int* p_variable;
 }
 uint_array[] =
 {
@@ -38,15 +38,23 @@ uint_array[] =
 
 static struct str_setting
 {
-    const char *p_setting_name;
-    const char **p_variable;
+    const char* p_setting_name;
+    const char** p_variable;
 }
 str_array[] =
 {
     { "listen_address", &tunable_listen_address },
     { NULL, NULL }
 };
-
+void free_config()
+{
+    for (int i = 0; i < sizeof(str_array) / sizeof(struct str_setting); i++) {
+        const char** p_cur_setting = (str_array+i)->p_variable;
+        if (p_cur_setting !=0 && *p_cur_setting!=0) {
+            free((char*)*p_cur_setting);
+        }
+    }
+}
 void load_config(const char *path)
 {
     FILE *fp = fopen(path, "r");
@@ -85,15 +93,16 @@ static void load_setting(const char *setting)
     }
 
     {
+        
         const struct str_setting *p_str_setting = str_array;
         while (p_str_setting->p_setting_name != NULL)
         {
             if (strcmp(key, p_str_setting->p_setting_name) == 0)
             {
                 const char **p_cur_setting = p_str_setting->p_variable;
-                if (*p_cur_setting)
+                if (p_cur_setting !=0 && *p_cur_setting!=0) {
                     free((char*)*p_cur_setting);
-
+                }
                 *p_cur_setting = _strdup(value);
                 return;
             }
