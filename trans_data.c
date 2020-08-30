@@ -273,6 +273,7 @@ int upload_file(Session_t *session, int appending)
 
     char buf[65535] = {0};
     int flag = 0;
+    int e = 0;
     for(;;)
     {
 #ifndef _WIN32
@@ -291,7 +292,13 @@ int upload_file(Session_t *session, int appending)
 
         if(nread == -1)
         {
-            if(errno == EINTR)
+            if (
+#ifndef _WIN32
+                errno == EINTR
+#else
+                (e = WSAGetLastError()) == WSAEINTR
+#endif
+                )
                 continue;
             flag = 1;
             break;

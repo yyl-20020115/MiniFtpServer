@@ -77,7 +77,8 @@ int privop_pasv_listen(Session_t *session)
 
 int privop_pasv_accept(Session_t *session)
 {
-    SOCKET peer_fd = accept_timeout(session->listen_fd, NULL, tunable_accept_timeout);
+    int t = 0;
+    SOCKET peer_fd = accept_timeout(session->listen_fd, NULL, tunable_accept_timeout,&t);
 
     s_close(&session->listen_fd);
 
@@ -87,9 +88,10 @@ int privop_pasv_accept(Session_t *session)
             != priv_sock_send_result(session->nobody_fd, PRIV_SOCK_RESULT_BAD))
             return PRIV_SOCK_OPERATION_FAILED;
 
-        
-        exit_with_error("accept_timeout");
-        return PRIV_SOCK_OPERATION_FAILED;
+        if (t != 0) {
+            exit_with_error("accept_timeout");
+            return PRIV_SOCK_OPERATION_FAILED;
+        }
     }
 
     if (PRIV_SOCK_OPERATION_SUCCEEDED

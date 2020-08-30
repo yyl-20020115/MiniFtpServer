@@ -19,8 +19,6 @@
 
 void priv_sock_init(Session_t *session);
 void priv_sock_close(Session_t *session);
-void priv_sock_set_nobody_context(Session_t *session);
-void priv_sock_set_proto_context(Session_t *session);
 int priv_sock_send_cmd(SOCKET fd, char cmd);
 int priv_sock_recv_cmd(SOCKET fd, char* pcmd);
 int priv_sock_send_result(SOCKET fd, char res);

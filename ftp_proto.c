@@ -8,6 +8,7 @@
 
 int handle_proto(Session_t *session)
 {
+    int e = 0;
     ftp_reply(session, FTP_GREET, GREETINGS);
     while(!should_exit())
     {
@@ -17,8 +18,15 @@ int handle_proto(Session_t *session)
 
         if (ret == -1)
         {
-            if (errno == EINTR)
+            if (
+#ifndef _WIN32
+                errno == EINTR
+#else
+                (e = WSAGetLastError()) == WSAEINTR
+#endif
+                )
                 continue;
+
             else
             {
                 exit_with_error("readline");

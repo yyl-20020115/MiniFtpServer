@@ -98,15 +98,6 @@ void priv_sock_close(Session_t *session)
     s_close(&session->nobody_fd);
     s_close(&session->proto_fd);
 }
-void priv_sock_set_nobody_context(Session_t *session)
-{
-    s_close(&session->peer_fd);
-    s_close(&session->proto_fd);
- }
-void priv_sock_set_proto_context(Session_t * session)
-{
-    s_close(&session->nobody_fd);
-}
 int priv_sock_send_cmd(SOCKET fd, char cmd)
 {
     int ret = writen(fd, &cmd, sizeof(cmd));

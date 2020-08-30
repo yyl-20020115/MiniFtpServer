@@ -162,6 +162,8 @@ int loop_thread(void* lp)
 DWORD WINAPI loop_thread(void* lp) 
 #endif
 {
+    int e = 0;
+    int t = 0;
     init_session_manager();
 
     listen_fd = tcp_server(tunable_listen_address, tunable_listen_port);
@@ -169,9 +171,15 @@ DWORD WINAPI loop_thread(void* lp)
     while (!should_exit())
     {
         struct sockaddr_in addr = { 0 };
-        SOCKET peer_fd = accept_timeout(listen_fd, &addr, tunable_accept_timeout);
+        SOCKET peer_fd = accept_timeout(listen_fd, &addr, tunable_accept_timeout,&t);
 
-        if (peer_fd == INVALID_SOCKET && s_timeout()) {
+        if (peer_fd == INVALID_SOCKET && 
+#ifndef _WIN32
+            (errno == ETIMEDOUT)
+#else
+            (((e = WSAGetLastError()) == WSAETIMEDOUT) || t!=0)
+#endif
+            ) {
             continue;
         }
         else if (peer_fd == INVALID_SOCKET) {

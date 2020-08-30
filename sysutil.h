@@ -21,10 +21,11 @@ int get_local_ip(char *ip,size_t count);
 
 void activate_nonblock(SOCKET fd);
 void deactivate_nonblock(SOCKET fd);
-
+#ifndef _WIN32
 int read_timeout(SOCKET fd, unsigned int wait_seconds);
 int write_timeout(SOCKET fd, unsigned int wait_seconds);
-SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds);
+#endif
+SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds, int* ptimeout);
 int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds);
 
 ssize_t readn(SOCKET fd, void *buf, size_t count);

@@ -29,13 +29,13 @@ int handle_nobody(Session_t *session)
             break;
         case PRIV_SOCK_INVALID_COMMAND:
         default:
-            exit_with_error("Unkown command\n");
-            return EXIT_FAILURE;
+            exit_with_error("Unknown command\n");
+            //return EXIT_FAILURE;
         }
 
         if (r != PRIV_SOCK_OPERATION_SUCCEEDED) {
             //any failed operation would result in exit of the thread loop
-            return EXIT_FAILURE;
+            //return EXIT_FAILURE;
         }
     }
     return EXIT_SUCCESS;

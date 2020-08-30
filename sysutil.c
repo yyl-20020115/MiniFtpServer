@@ -62,7 +62,7 @@ int n_sleep(double t)
 
 SOCKET tcp_client(unsigned int port)
 {
-    SOCKET sockfd;
+    SOCKET sockfd = 0;
     if ((sockfd = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
         exit_with_error("socket");
         return sockfd;
@@ -102,7 +102,7 @@ int inet_aton(const char* cp, struct in_addr* inp)
 SOCKET tcp_server(const char *host, unsigned short port)
 {
     int done = 0;
-    SOCKET listenfd;
+    SOCKET listenfd = 0;
     if ((listenfd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
         exit_with_error("tcp_server");
         return INVALID_SOCKET;
@@ -122,7 +122,8 @@ SOCKET tcp_server(const char *host, unsigned short port)
             }
         }
     }
-    if (!done) {
+    if (!done) 
+    {
         seraddr.sin_addr.s_addr = htonl(INADDR_ANY);
     }
     seraddr.sin_port = htons(port);
@@ -151,7 +152,7 @@ SOCKET tcp_server(const char *host, unsigned short port)
 int get_local_ip(char *ip, size_t count)
 {
 #ifndef _WIN32
-    SOCKET sockfd;
+    SOCKET sockfd = 0;
     if((sockfd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
     {
         exit_with_error("socket");
@@ -188,7 +189,7 @@ void deactivate_nonblock(SOCKET fd)
     u_long flags = 0;
     ioctlsocket(socket, FIONBIO, &flags);
 }
-
+#ifndef _WIN32
 int read_timeout(SOCKET fd, unsigned int wait_seconds)
 {
     int ret = 0;
@@ -204,8 +205,14 @@ int read_timeout(SOCKET fd, unsigned int wait_seconds)
 
         do
         {
-            ret = select(fd + 1, &read_fd, NULL, NULL, &timeout);
-        }while(ret < 0 && errno == EINTR);
+            ret = select(read_fd.fd_count, &read_fd, NULL, NULL, &timeout);
+        }while(ret < 0 && 
+#ifndef _WIN32
+            (errno == EINTR)
+#else
+            (WSAGetLastError() == WSAEINTR)
+#endif
+            );
 
         if(ret == 0)
         {
@@ -233,7 +240,7 @@ int write_timeout(SOCKET fd, unsigned int wait_seconds)
 
         do
         {
-            ret = select(fd + 1, NULL, &write_fd, NULL,  &timeout);
+            ret = select(write_fd.fd_count, NULL, &write_fd, NULL,  &timeout);
         }while(ret < 0 && errno == EINTR);
 
         if(ret == 0)
@@ -246,10 +253,10 @@ int write_timeout(SOCKET fd, unsigned int wait_seconds)
     }
     return ret;
 }
-
-SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds)
+#endif
+SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds, int* ptimeout)
 {
-    int ret;
+    int ret = 0;
     socklen_t addrlen = sizeof(struct sockaddr_in);
     if(wait_seconds > 0)
     {
@@ -264,16 +271,26 @@ SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_sec
         do
         {
             ret = select(accept_fd.fd_count, &accept_fd, NULL, NULL, &timeout);
-        }while(ret < 0 && errno == EINTR);
+        }
+        while(ret < 0 && 
+#ifndef _WIN32
+            (errno == EINTR)
+#else
+            (WSAGetLastError() == WSAEINTR)
+#endif
+            );
+        
         if(ret == -1)
             return -1;
         else if(ret == 0)
         {
-            errno = ETIMEDOUT;
+            if (ptimeout != 0) {
+                *ptimeout = 1;
+            }
             return -1;
         }
     }
-    SOCKET r;
+    SOCKET r = 0;
     if(addr != NULL)
         r = accept(fd, (struct sockaddr*)addr, &addrlen);
     else
@@ -284,7 +301,7 @@ SOCKET accept_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_sec
 
 int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_seconds)
 {
-    int ret;
+    int ret = 0;
     socklen_t addrlen = sizeof(struct sockaddr_in);
 
     if(wait_seconds > 0)
@@ -292,7 +309,14 @@ int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_secon
 
     ret = connect(fd, (struct sockaddr*)addr, addrlen);
     printf("ret %d\n", ret);
-    if(ret < 0 && errno == EINPROGRESS)
+
+    if(ret < 0 &&
+#ifndef _WIN32
+        (errno == EINPROGRESS)
+#else
+        (WSAGetLastError() == WSAEINPROGRESS)
+#endif
+        )
     {
         fd_set connect_fd;
         FD_ZERO(&connect_fd);
@@ -304,15 +328,20 @@ int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_secon
 
         do
         {
-            printf("a\n");
-            /*一旦连接建立，套接字就可写*/
-            ret = select(fd + 1, NULL, &connect_fd, NULL, &timeout);
-            printf("ret - %d\n", ret);
-        }while(ret < 0 && errno == EINTR);
+            //printf("a\n");
+            ret = select(connect_fd.fd_count, NULL, &connect_fd, NULL, &timeout);
+            //printf("ret - %d\n", ret);
+        }while(ret < 0 && 
+#ifndef _WIN32
+            (errno == EINTR)
+#else
+            (WSAGetLastError()==WSAEINTR)
+#endif
+            );
         if(ret == 0)
         {
             ret = -1;
-            errno = ETIMEDOUT;
+            //errno = ETIMEDOUT;
         }
         else if(ret < 0)
             return -1;
@@ -362,7 +391,7 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
 #ifndef _WIN32
                 errno == EINTR
 #else
-                (e = WSAGetLastError()) == WSAEINTR
+                (e = WSAGetLastError()) == WSAEINTR ||(e=WSAGetLastError() == WSAECONNABORTED)
 #endif
                 )
                 continue;
@@ -397,7 +426,7 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
 #ifndef _WIN32
                 errno == EINTR
 #else
-                (e=WSAGetLastError()) == WSAEINTR
+                (e = WSAGetLastError()) == WSAEINTR || (e = WSAGetLastError() == WSAECONNABORTED)
 #endif
                 )
                 continue;
@@ -413,11 +442,18 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
 }
 static ssize_t recv_peek(SOCKET sockfd, void *buf, size_t len)
 {
+    int e = 0;
     int nread = 0;
     for(;;)
     {
         nread = recv(sockfd, buf, len, MSG_PEEK);
-        if (nread < 0 && errno == EINTR)
+        if (nread < 0 && 
+#ifndef _WIN32
+            (errno == EINTR)
+#else
+            (e = WSAGetLastError()) == WSAEINTR || (e = WSAGetLastError() == WSAECONNABORTED)
+#endif
+            )
         {
             continue;
         }
