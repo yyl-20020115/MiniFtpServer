@@ -9,14 +9,14 @@
 
 static char receiver_buffer[65535] = { 0 };
 
-ssize_t sendfile(SOCKET out_fd, int in_fd, off_t* offset, size_t count) {
+ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, size_t block_size) {
     int r = 0, d = 0;
     ssize_t n = 0;
     char buffer[4096] = { 0 };
     if (offset != 0) {
         _lseeki64(in_fd, *offset, SEEK_SET);
     }
-    for (size_t i = 0; i < count; i+=sizeof(buffer)) {
+    for (size_t i = 0; i < block_size; i+=sizeof(buffer)) {
         r = _read(in_fd, buffer, sizeof(buffer));
         d = send(out_fd, buffer, r, 0);
         n += d;
@@ -95,7 +95,7 @@ void limit_curr_rate(Session_t* sess, int nbytes, int is_upload)
 }
 #endif
 
-typedef ssize_t (*send_data_function)(SOCKET out_socket,void* src, off_t* offset, size_t count);
+typedef ssize_t (*send_data_function)(SOCKET out_socket,void* src, long long* offset, size_t count);
 
 int provide_data_as_file(Session_t* session, unsigned long long filesize, send_data_function sdf, void* src) {
     
@@ -110,11 +110,7 @@ int provide_data_as_file(Session_t* session, unsigned long long filesize, send_d
         }
 
         long long offset = session->restart_pos;
-        if (offset != 0)
-        {
-            filesize -= offset;
-        }
-
+        
         char text[1024] = { 0 };
         snprintf(text, sizeof(text),
             "Opening Binary mode data connection for %s (%llu bytes).",
@@ -130,7 +126,7 @@ int provide_data_as_file(Session_t* session, unsigned long long filesize, send_d
         {
             block_size = (nleft > kSize) ? kSize : nleft;
 
-            int nwrite = sdf(session->data_fd, src, NULL, block_size);
+            int nwrite = sdf(session->data_fd, src, &offset, block_size);
 
             if (session->is_receive_abor == 1)
             {
@@ -140,13 +136,13 @@ int provide_data_as_file(Session_t* session, unsigned long long filesize, send_d
                 session->is_receive_abor = 0;
                 break;
             }
-
+            
             if (nwrite == -1)
             {
                 flag = 1;
                 break;
             }
-            
+            offset += nwrite;
             nleft -= nwrite;
         }
         if (nleft == 0)
@@ -238,7 +234,7 @@ int download_file(Session_t *session)
     {
         block_size = (nleft > kSize) ? kSize : nleft;
 
-        int nwrite = sendfile(session->data_fd, fd, NULL, block_size);
+        int nwrite = send_file_block(session->data_fd, fd, NULL, block_size);
 
         if(session->is_receive_abor == 1)
         {

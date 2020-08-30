@@ -25,7 +25,7 @@ typedef int ssize_t;
 #else
 typedef long long ssize_t;
 #endif
-ssize_t sendfile(SOCKET out_fd, int in_fd, off_t* offset, size_t count);
+ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, size_t count);
 int nanosleep(const struct timespec *req, struct timespec *rem);
 int inet_aton(const char* cp, struct in_addr* inp);
 #include <Windows.h>
