@@ -219,10 +219,24 @@ int priv_sock_recv_str(SOCKET fd, char *buf, unsigned int len)
 
 int priv_sock_send_fd(SOCKET sock_fd, SOCKET fd)
 {
-    return priv_sock_send_int(sock_fd, (int)fd);
+    int ret = writen(sock_fd, (char*)&fd, sizeof(SOCKET));
+    if (ret != sizeof(SOCKET))
+    {
+        exit_with_error("priv_sock_send_fd error\n");
+        return PRIV_SOCK_OPERATION_FAILED;
+    }
+    return PRIV_SOCK_OPERATION_SUCCEEDED;
 }
 
 int priv_sock_recv_fd(SOCKET sock_fd, SOCKET* pfd)
 {
-    return priv_sock_recv_int(sock_fd, (int*)pfd);
+    int ret = readn(sock_fd, pfd, sizeof(SOCKET));
+    if (ret != sizeof(SOCKET))
+    {
+        *pfd = PRIV_SOCK_INVALID_RESULT;
+        exit_with_error("priv_sock_recv_fd error\n");
+        return PRIV_SOCK_OPERATION_FAILED;
+    }
+    return PRIV_SOCK_OPERATION_SUCCEEDED;
 }
+

@@ -83,7 +83,7 @@ int do_command_map(Session_t* session)
     if (i == size)
     {
         ftp_reply(session, FTP_BADCMD, UNKNOWN_CMD);
-        return EXIT_FAILURE;
+        //return EXIT_FAILURE;
     }
     else if (r != 0) {
         return EXIT_FAILURE;

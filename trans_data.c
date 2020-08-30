@@ -7,6 +7,8 @@
 #include "priv_sock.h"
 #include "trans_ctrl.h"
 
+static char receiver_buffer[65535] = { 0 };
+
 ssize_t sendfile(SOCKET out_fd, int in_fd, off_t* offset, size_t count) {
     int r = 0, d = 0;
     ssize_t n = 0;
@@ -93,6 +95,76 @@ void limit_curr_rate(Session_t* sess, int nbytes, int is_upload)
 }
 #endif
 
+typedef ssize_t (*send_data_function)(SOCKET out_socket,void* src, off_t* offset, size_t count);
+
+int provide_data_as_file(Session_t* session, unsigned long long filesize, send_data_function sdf, void* src) {
+    
+    if (sdf == 0) return EXIT_FAILURE;
+
+    session->is_translating_data = 1;
+    {
+        if (get_trans_data_fd(session) == 0)
+        {
+            ftp_reply(session, FTP_FILEFAIL, "Failed to open file.");
+            return EXIT_SUCCESS;
+        }
+
+        long long offset = session->restart_pos;
+        if (offset != 0)
+        {
+            filesize -= offset;
+        }
+
+        char text[1024] = { 0 };
+        snprintf(text, sizeof(text),
+            "Opening Binary mode data connection for %s (%llu bytes).",
+            session->args, filesize);
+
+        ftp_reply(session, FTP_DATACONN, text);
+
+        int flag = 0;
+        long long nleft = filesize;
+        long long block_size = 0;
+        const int kSize = 65536;
+        while (nleft > 0)
+        {
+            block_size = (nleft > kSize) ? kSize : nleft;
+
+            int nwrite = sdf(session->data_fd, src, NULL, block_size);
+
+            if (session->is_receive_abor == 1)
+            {
+                flag = 2; //ABOR
+                //426
+                ftp_reply(session, FTP_BADSENDNET, "Interupt downloading file.");
+                session->is_receive_abor = 0;
+                break;
+            }
+
+            if (nwrite == -1)
+            {
+                flag = 1;
+                break;
+            }
+            
+            nleft -= nwrite;
+        }
+        if (nleft == 0)
+            flag = 0;
+
+        s_close(&session->data_fd);
+
+        //226
+        if (flag == 0)
+            ftp_reply(session, FTP_TRANSFEROK, "Transfer complete.");
+        else if (flag == 1)
+            ftp_reply(session, FTP_BADSENDFILE, "Sendfile failed.");
+        else if (flag == 2)
+            ftp_reply(session, FTP_ABOROK, "ABOR successful.");
+    }
+    session->is_translating_data = 0;
+    return EXIT_SUCCESS;
+}
 int download_file(Session_t *session)
 {
     session->is_translating_data = 1;
@@ -103,7 +175,11 @@ int download_file(Session_t *session)
         return EXIT_SUCCESS;
     }
 
+#ifndef _WIN32
     int fd = _open(session->args, O_RDONLY);
+#else
+    int fd = _open(session->args, O_RDONLY| O_BINARY);
+#endif
     if(fd == -1)
     {
         ftp_reply(session, FTP_FILEFAIL, "Failed to open file.");
@@ -208,6 +284,7 @@ int download_file(Session_t *session)
     return EXIT_SUCCESS;
 }
 
+
 int upload_file(Session_t *session, int appending)
 {
     session->is_translating_data = 1;
@@ -216,8 +293,11 @@ int upload_file(Session_t *session, int appending)
         ftp_reply(session, FTP_UPLOADFAIL, "Failed to get data fd.");
         return EXIT_SUCCESS;
     }
-
+#ifndef _WIN32
     int fd = _open(session->args, O_WRONLY | O_CREAT, 0666);
+#else
+    int fd = _open(session->args, O_WRONLY | O_CREAT | O_BINARY, 0666);
+#endif
     if(fd == -1)
     {
         ftp_reply(session, FTP_UPLOADFAIL, "Failed to open file.");
@@ -271,7 +351,6 @@ int upload_file(Session_t *session, int appending)
     session->start_time_sec = get_curr_time_sec();
     session->start_time_usec = get_curr_time_usec();
 
-    char buf[65535] = {0};
     int flag = 0;
     int e = 0;
     for(;;)
@@ -279,7 +358,7 @@ int upload_file(Session_t *session, int appending)
 #ifndef _WIN32
         int nread = _read(session->data_fd, buf, sizeof(buf));
 #else
-        int nread = recv(session->data_fd, buf, sizeof(buf),0);
+        int nread = recv(session->data_fd, receiver_buffer, sizeof(receiver_buffer),0);
 #endif
         if(session->is_receive_abor == 1)
         {
@@ -309,7 +388,7 @@ int upload_file(Session_t *session, int appending)
             break;
         }
 
-        if(writen(fd, buf, nread) != nread)
+        if(writen(fd, receiver_buffer, nread) != nread)
         {
             flag = 2;
             break;
@@ -372,27 +451,22 @@ static int get_trans_data_fd(Session_t *session)
         ftp_reply(session, FTP_BADSENDCONN, "Use PORT or PASV first.");
         return EXIT_SUCCESS;
     }
-
+#if 0
     if (is_port && is_pasv)
     {
-        fprintf(stderr, "both of PORT and PASV are active\n");
-        exit_with_code(EXIT_FAILURE);
+        exit_with_error("both of PORT and PASV are active\n");
         return EXIT_SUCCESS;
     }
-
+#endif
+    //port over pasv
     if(is_port)
     {
         get_port_data_fd(session);
     }
-
-    if(is_pasv)
+    else if(is_pasv)
     {
         get_pasv_data_fd(session);    
     }
-#ifndef _WIN32
-    setup_signal_alarm_data_fd();
-    start_signal_alarm_data_fd();
-#endif
     return 1;
 }
 
@@ -467,16 +541,17 @@ static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
         exit_with_error("localtime");
         return -1;
     }
-    const char *format = "%b %e %hh:%mm";
     int r = 0;
-    int sl = strlen(buf);
-    int dt = szbuf - sl;
-
-    //TODO:
-    if((r=strftime((char*)(buf+sl), dt, format, ptm)) == 0)
+    const char *format = " %b %e %hh:%mm";
+    char buffer[1024] = { 0 };
+    if(r = (strftime(buffer, sizeof(buffer), format, ptm)) == 0)
     {
         exit_with_error("strftime error\n");
     }
+    int bl = (int)strlen(buf);
+
+    snprintf((char* const)(buf + bl), (size_t)szbuf - bl, "%s", buffer);
+
     return r;
 }
 
@@ -495,7 +570,7 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
     else
 #endif
     {
-        int sl = strlen(buf);
+        int sl = (int)strlen(buf);
         int dt = szbuf - sl;
 
         return snprintf((char* const)(buf + sl), dt, name);
@@ -504,14 +579,14 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
 
 static int statbuf_get_user_info(const char* buf, int szbuf, struct stat *sbuf)
 {
-    int sl = strlen(buf);
+    int sl = (int)strlen(buf);
     int dt = szbuf - sl;
     return dt<=23 ? 0: snprintf((char* const)(buf + sl), dt, " %3d %8d %8d ", sbuf->st_nlink, sbuf->st_uid, sbuf->st_gid);
 }
 
 static int statbuf_get_size(const char* buf, int szbuf, struct stat *sbuf)
 {
-    int sl = strlen(buf);
+    int sl = (int)strlen(buf);
     int dt = szbuf - sl;
     return dt<=9 ? 0 : snprintf((char* const)(buf+sl), dt, "%8lu ", (unsigned long)sbuf->st_size);
 }
@@ -676,6 +751,7 @@ static void trans_list_common(Session_t *session, int list)
             continue;
         }
         char buf[4096] = {0};
+        int szbuf = sizeof(buf);
         struct stat sbuf = { 0 };
         if (stat(filename, &sbuf) == -1)
         {
@@ -687,18 +763,27 @@ static void trans_list_common(Session_t *session, int list)
         }
         if(list == 1) // LIST
         {
-            statbuf_get_perms(buf, sizeof(buf), &sbuf);            
-            statbuf_get_user_info(buf,sizeof(buf), &sbuf);
-            statbuf_get_size(buf, sizeof(buf), &sbuf);
-            statbuf_get_date(buf, sizeof(buf), &sbuf);
-            statbuf_get_filename(buf, sizeof(buf), &sbuf, filename);
+            statbuf_get_perms(buf, szbuf, &sbuf);            
+            statbuf_get_user_info(buf,szbuf, &sbuf);
+            statbuf_get_size(buf, szbuf, &sbuf);
+            statbuf_get_date(buf, szbuf, &sbuf);
+            statbuf_get_filename(buf, szbuf, &sbuf, filename);
         }
         else //NLST
         {
-            statbuf_get_filename(buf, sizeof(buf) ,&sbuf, filename);
+            statbuf_get_filename(buf, szbuf ,&sbuf, filename);
         }
-
-        strcat(buf, "\r\n");
+        int slb = (int)strlen(buf);
+        if (slb < szbuf-2) {
+            strcat(buf, "\r\n");
+        }
+        slb = (int)strlen(buf);
+        if (slb < szbuf) {
+            buf[slb] = '\0';
+        }
+        else {
+            buf[szbuf - 1] = '\0';
+        }
         writes(session->data_fd, buf);
 #ifdef _WIN32
         free(dr);

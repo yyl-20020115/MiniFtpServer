@@ -180,14 +180,14 @@ int get_local_ip(char *ip, size_t count)
 
 void activate_nonblock(SOCKET fd)
 {
-    u_long flags = 1;
-    ioctlsocket(socket, FIONBIO, &flags);
+    //u_long flags = 1;
+    //ioctlsocket(fd, FIONBIO, &flags);
 }
 
 void deactivate_nonblock(SOCKET fd)
 {
-    u_long flags = 0;
-    ioctlsocket(socket, FIONBIO, &flags);
+    //u_long flags = 0;
+    //ioctlsocket(fd, FIONBIO, &flags);
 }
 #ifndef _WIN32
 int read_timeout(SOCKET fd, unsigned int wait_seconds)
@@ -308,7 +308,6 @@ int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_secon
         activate_nonblock(fd);
 
     ret = connect(fd, (struct sockaddr*)addr, addrlen);
-    printf("ret %d\n", ret);
 
     if(ret < 0 &&
 #ifndef _WIN32
@@ -328,9 +327,7 @@ int connect_timeout(SOCKET fd, struct sockaddr_in *addr, unsigned int wait_secon
 
         do
         {
-            //printf("a\n");
             ret = select(connect_fd.fd_count, NULL, &connect_fd, NULL, &timeout);
-            //printf("ret - %d\n", ret);
         }while(ret < 0 && 
 #ifndef _WIN32
             (errno == EINTR)
@@ -384,7 +381,7 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
 #ifndef _WIN32
         if ((nread = read(fd, bufp, nleft)) < 0)
 #else
-        if((nread = recv(fd, bufp, nleft,0)) < 0)
+        if((nread = recv(fd, bufp, (int)nleft,0)) < 0)
 #endif
         {
             if(
@@ -398,12 +395,12 @@ ssize_t readn(SOCKET fd, void *buf, size_t n)
             return -1;
         }
         else if(nread == 0)
-            return (n - nleft);
+            return (ssize_t)(n - nleft);
 
         bufp += nread;
         nleft -= nread;
     }
-    return n;
+    return (ssize_t)n;
 }
 ssize_t writes(SOCKET fd, const char* text) {
     return writen(fd, text, strlen(text));
@@ -419,7 +416,7 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
 #ifndef _WIN32
         if((nwrite = write(fd, bufp, nleft)) < 0)
 #else
-        if ((nwrite = send(fd, bufp, nleft, 0)) < 0)
+        if ((nwrite = send(fd, bufp, (int)nleft, 0)) < 0)
 #endif
         {
             if (
@@ -438,7 +435,7 @@ ssize_t writen(SOCKET fd, const void *buf, size_t n)
         bufp += nwrite;
         nleft -= nwrite;
     }
-    return n;
+    return (ssize_t)n;
 }
 static ssize_t recv_peek(SOCKET sockfd, void *buf, size_t len)
 {
@@ -446,7 +443,7 @@ static ssize_t recv_peek(SOCKET sockfd, void *buf, size_t len)
     int nread = 0;
     for(;;)
     {
-        nread = recv(sockfd, buf, len, MSG_PEEK);
+        nread = recv(sockfd, buf, (int)len, MSG_PEEK);
         if (nread < 0 && 
 #ifndef _WIN32
             (errno == EINTR)
@@ -474,7 +471,7 @@ ssize_t readline(SOCKET sockfd, void *buf, size_t maxsize)
     int ret = 0;
     int total = 0;
 
-    nleft = maxsize-1;
+    nleft = (int)(maxsize-1);
     ptr = buf;
 
     while (nleft > 0) {
@@ -512,5 +509,5 @@ ssize_t readline(SOCKET sockfd, void *buf, size_t maxsize)
         ptr += nread;
     }
     *ptr = 0;
-    return maxsize - 1;
+    return (ssize_t)(maxsize - 1);
 }
