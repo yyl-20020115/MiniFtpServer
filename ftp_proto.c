@@ -14,7 +14,7 @@ int handle_proto(Session_t *session)
     {
         session_reset_command(session);
 
-        int ret = readline(session->peer_fd, session->command, MAX_COMMAND);
+        int ret = (int)readline(session->peer_fd, session->command, MAX_COMMAND);
 
         if (ret == -1)
         {
@@ -41,7 +41,10 @@ int handle_proto(Session_t *session)
         str_trim_crlf(session->command);
         str_split(session->command, session->com, session->args, ' ');
         str_upper(session->com);
-        printf("COMMD=[%s], ARGS=[%s]\n", session->com, session->args);
+        char b[2048] = { 0 };
+        _snprintf(b,sizeof(b),"%s:COMMD=[%s], ARGS=[%s]\n",session->command, session->com, session->args);
+        log("log.txt",b);
+
         int r = do_command_map(session);
         if (EXIT_FAILURE == r) {
             return EXIT_FAILURE;

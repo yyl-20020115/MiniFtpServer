@@ -94,14 +94,16 @@ int do_command_map(Session_t* session)
 void ftp_reply(Session_t* session, int status, const char* text)
 {
     char _text[1024] = { 0 };
-    snprintf(_text, sizeof(_text), "%d %s\r\n", status, text);
+    _snprintf(_text, sizeof(_text), "%d %s\r\n", status, text);
+    log("log.txt", _text);
     writes(session->peer_fd, _text);
 }
 
 void ftp_lreply(Session_t* session, int status, const char* text)
 {
     char _text[1024] = { 0 };
-    snprintf(_text, sizeof(_text), "%d-%s\r\n", status, text);
+    _snprintf(_text, sizeof(_text), "%d-%s\r\n", status, text);
+    log("log.txt", _text);
     writes(session->peer_fd, _text);
 }
 
@@ -175,7 +177,19 @@ int do_pass(Session_t* session)
 
 int do_cwd(Session_t* session)
 {
-    if (_chdir(session->args) == -1)
+    char buffer[4096] = { 0 };
+    int arglen = (int)strlen(session->args);
+    if (strstr(session->args, "/") == session->args 
+        && strrchr(session->args,'/')==(session->args + arglen -1)) { 
+
+        strncpy(buffer, session->args + 1, sizeof(buffer));
+        arglen = (int)strlen(buffer);
+        buffer[arglen-1] = '\0';
+    }
+    else {
+        strncpy(buffer, session->args, sizeof(buffer));
+    }
+    if (_chdir(buffer) == -1)
     {
         //550
         ftp_reply(session, FTP_FILEFAIL, "Failed to change directory.");
@@ -267,7 +281,7 @@ int do_pasv(Session_t* session)
         v[5] = p[1];
 
         char text[1024] = { 0 };
-        snprintf(text, sizeof text, "Entering Passive Mode (%u,%u,%u,%u,%u,%u).", v[0], v[1], v[2], v[3], v[4], v[5]);
+        _snprintf(text, sizeof text, "Entering Passive Mode (%u,%u,%u,%u,%u,%u).", v[0], v[1], v[2], v[3], v[4], v[5]);
 
         ftp_reply(session, FTP_PASVOK, text);
     }
@@ -342,7 +356,7 @@ int do_rest(Session_t* session)
     session->restart_pos = atoll(session->args);
     //Restart position accepted (344545).
     char text[1024] = { 0 };
-    snprintf(text, sizeof(text), "Restart position accepted (%lld).", session->restart_pos);
+    _snprintf(text, sizeof(text), "Restart position accepted (%lld).", session->restart_pos);
     ftp_reply(session, FTP_RESTOK, text);
     return EXIT_SUCCESS;
 }
@@ -363,7 +377,7 @@ int do_pwd(Session_t* session)
         return EXIT_SUCCESS;
     }
     char text[1024] = { 0 };
-    snprintf(text, sizeof (text), "\"%s\"", tmp);
+    _snprintf(text, sizeof (text), "\"%s\"", tmp);
     ftp_reply(session, FTP_PWDOK, text);
     return EXIT_SUCCESS;
 }
@@ -383,7 +397,7 @@ int do_mkd(Session_t* session)
     char text[1024] = { 0 };
     if (session->args[0] == '/')
     {
-        snprintf(text, sizeof(text), "%s created.", session->args);
+        _snprintf(text, sizeof(text), "%s created.", session->args);
     }
     else
     {
@@ -393,7 +407,7 @@ int do_mkd(Session_t* session)
             exit_with_error("getcwd");
             return EXIT_SUCCESS;
         }
-        snprintf(text, sizeof text, "%s/%s created.", tmp, session->args);
+        _snprintf(text, sizeof text, "%s/%s created.", tmp, session->args);
     }
 
     ftp_reply(session, FTP_MKDIROK, text);
@@ -538,11 +552,11 @@ int do_site(Session_t* session)
     str_split(session->args, cmd, args, ' ');
     str_upper(cmd);
 
-    if (strcmp("CHMOD", cmd))
+    if (strcmp("CHMOD", cmd) == 0)
         return do_site_chmod(session, args);
-    else if (strcmp("UMASK", cmd))
+    else if (strcmp("UMASK", cmd) == 0)
         return do_site_umask(session, args);
-    else if (strcmp("HELP", cmd))
+    else if (strcmp("HELP", cmd) == 0)
         return do_site_help(session);
     else
         ftp_reply(session, FTP_BADCMD, "Unknown SITE command.");
@@ -599,7 +613,7 @@ int do_size(Session_t* session)
     }
     //213 6
     char text[1024] = { 0 };
-    snprintf(text, sizeof text, "%lu", sbuf.st_size);
+    _snprintf(text, sizeof text, "%lu", sbuf.st_size);
     ftp_reply(session, FTP_SIZEOK, text);
     return EXIT_SUCCESS;
 }
@@ -611,10 +625,10 @@ int do_stat(Session_t* session)
     char text[1024] = { 0 };
     struct in_addr in = { 0 };
     in.s_addr = session->ip;
-    snprintf(text, sizeof text, " Connected to %s\r\n", inet_ntoa(in));
+    _snprintf(text, sizeof text, " Connected to %s\r\n", inet_ntoa(in));
     writes(session->peer_fd, text);
 
-    snprintf(text, sizeof text, " Logged in as %s\r\n", session->username);
+    _snprintf(text, sizeof text, " Logged in as %s\r\n", session->username);
     writes(session->peer_fd, text);
     ftp_reply(session, FTP_STATOK, "End of status");
     return EXIT_SUCCESS;

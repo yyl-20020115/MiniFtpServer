@@ -9,7 +9,7 @@
 
 static char receiver_buffer[65535] = { 0 };
 
-ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, size_t block_size) {
+ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, long long block_size) {
     int r = 0, d = 0;
     ssize_t n = 0;
     char buffer[4096] = { 0 };
@@ -95,7 +95,7 @@ void limit_curr_rate(Session_t* sess, int nbytes, int is_upload)
 }
 #endif
 
-typedef ssize_t (*send_data_function)(SOCKET out_socket,void* src, long long* offset, size_t count);
+typedef ssize_t (*send_data_function)(SOCKET out_socket,void* src, long long* offset, long long count);
 
 int provide_data_as_file(Session_t* session, unsigned long long filesize, send_data_function sdf, void* src) {
     
@@ -112,7 +112,7 @@ int provide_data_as_file(Session_t* session, unsigned long long filesize, send_d
         long long offset = session->restart_pos;
         
         char text[1024] = { 0 };
-        snprintf(text, sizeof(text),
+        _snprintf(text, sizeof(text),
             "Opening Binary mode data connection for %s (%llu bytes).",
             session->args, filesize);
 
@@ -126,7 +126,7 @@ int provide_data_as_file(Session_t* session, unsigned long long filesize, send_d
         {
             block_size = (nleft > kSize) ? kSize : nleft;
 
-            int nwrite = sdf(session->data_fd, src, &offset, block_size);
+            ssize_t nwrite = sdf(session->data_fd, src, &offset, block_size);
 
             if (session->is_receive_abor == 1)
             {
@@ -174,7 +174,7 @@ int download_file(Session_t *session)
 #ifndef _WIN32
     int fd = _open(session->args, O_RDONLY);
 #else
-    int fd = _open(session->args, O_RDONLY| O_BINARY);
+    int fd =_open(session->args, O_RDONLY | O_BINARY);
 #endif
     if(fd == -1)
     {
@@ -215,11 +215,11 @@ int download_file(Session_t *session)
     char text[1024] = {0};
     if (session->ascii_mode == 1)
     {
-        snprintf(text, sizeof(text), "Opening ASCII mode data connection for %s (%llu bytes).", session->args, filesize);
+        _snprintf(text, sizeof(text), "Opening ASCII mode data connection for %s (%llu bytes).", session->args, filesize);
     }
     else 
     {
-        snprintf(text, sizeof(text), "Opening Binary mode data connection for %s (%llu bytes).", session->args, filesize);
+        _snprintf(text, sizeof(text), "Opening Binary mode data connection for %s (%llu bytes).", session->args, filesize);
     }
     ftp_reply(session, FTP_DATACONN, text);
 
@@ -234,7 +234,7 @@ int download_file(Session_t *session)
     {
         block_size = (nleft > kSize) ? kSize : nleft;
 
-        int nwrite = send_file_block(session->data_fd, fd, NULL, block_size);
+        ssize_t nwrite = send_file_block(session->data_fd, fd, NULL, block_size);
 
         if(session->is_receive_abor == 1)
         {
@@ -447,13 +447,11 @@ static int get_trans_data_fd(Session_t *session)
         ftp_reply(session, FTP_BADSENDCONN, "Use PORT or PASV first.");
         return EXIT_SUCCESS;
     }
-#if 0
     if (is_port && is_pasv)
     {
         exit_with_error("both of PORT and PASV are active\n");
         return EXIT_SUCCESS;
     }
-#endif
     //port over pasv
     if(is_port)
     {
@@ -526,7 +524,7 @@ static int statbuf_get_perms(const char* buf, int szbuf, struct stat *sbuf)
     int sl = (int)strlen(buf);
     int dt = szbuf - sl;
     
-    return (dt > strlen(perms)) ? snprintf((char* const)(buf + sl), dt, perms) : 0;
+    return (dt > (int)strlen(perms)) ? _snprintf((char* const)(buf + sl), dt, perms) : 0;
 }
 
 static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
@@ -538,7 +536,7 @@ static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
         return -1;
     }
     int r = 0;
-    const char *format = " %b %e %hh:%mm";
+    const char *format = " %Y-%m-%d_%H:%M:%S ";
     char buffer[1024] = { 0 };
     if(r = (strftime(buffer, sizeof(buffer), format, ptm)) == 0)
     {
@@ -546,7 +544,7 @@ static int statbuf_get_date(const char* buf, int szbuf, struct stat *sbuf)
     }
     int bl = (int)strlen(buf);
 
-    snprintf((char* const)(buf + bl), (size_t)szbuf - bl, "%s", buffer);
+    _snprintf((char* const)(buf + bl), (size_t)szbuf - bl, "%s", buffer);
 
     return r;
 }
@@ -561,7 +559,7 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
         if (readlink(name, linkfile, sizeof linkfile) == -1) {
             exit_with_error("readlink");
         }
-        return snprintf((char* const)(buf + strlen(buf)), szbuf, "%s -> %s", name, linkfile);
+        return _snprintf((char* const)(buf + strlen(buf)), szbuf, "%s -> %s", name, linkfile);
     }
     else
 #endif
@@ -569,7 +567,7 @@ static int statbuf_get_filename(const char* buf, int szbuf, struct stat *sbuf, c
         int sl = (int)strlen(buf);
         int dt = szbuf - sl;
 
-        return snprintf((char* const)(buf + sl), dt, name);
+        return _snprintf((char* const)(buf + sl), dt, name);
     }
 }
 
@@ -577,14 +575,14 @@ static int statbuf_get_user_info(const char* buf, int szbuf, struct stat *sbuf)
 {
     int sl = (int)strlen(buf);
     int dt = szbuf - sl;
-    return dt<=23 ? 0: snprintf((char* const)(buf + sl), dt, " %3d %8d %8d ", sbuf->st_nlink, sbuf->st_uid, sbuf->st_gid);
+    return dt<=23 ? 0: _snprintf((char* const)(buf + sl), dt, " %3d %8d %8d ", sbuf->st_nlink, sbuf->st_uid, sbuf->st_gid);
 }
 
 static int statbuf_get_size(const char* buf, int szbuf, struct stat *sbuf)
 {
     int sl = (int)strlen(buf);
     int dt = szbuf - sl;
-    return dt<=9 ? 0 : snprintf((char* const)(buf+sl), dt, "%8lu ", (unsigned long)sbuf->st_size);
+    return dt<=9 ? 0 : _snprintf((char* const)(buf+sl), dt, "%8lu ", (unsigned long)sbuf->st_size);
 }
 
 static int is_port_active(Session_t *session)
@@ -780,6 +778,7 @@ static void trans_list_common(Session_t *session, int list)
         else {
             buf[szbuf - 1] = '\0';
         }
+        log("log.txt", buf);
         writes(session->data_fd, buf);
 #ifdef _WIN32
         free(dr);

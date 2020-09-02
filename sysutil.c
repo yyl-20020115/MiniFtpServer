@@ -1,5 +1,6 @@
 #include "sysutil.h"
 #include "common.h"
+#include "netutils.h"
 
 static ssize_t recv_peek(SOCKET sockfd, void *buf, size_t len);
 
@@ -97,7 +98,7 @@ SOCKET tcp_client(unsigned int port)
 }
 int inet_aton(const char* cp, struct in_addr* inp)
 {
-    return inet_pton(PF_INET, cp, inp);
+    return rtc_inet_pton(PF_INET, cp, inp);
 }
 SOCKET tcp_server(const char *host, unsigned short port)
 {
@@ -173,7 +174,7 @@ int get_local_ip(char *ip, size_t count)
     strcpy(ip, inet_ntoa(host->sin_addr));
     s_close(&sockfd);
 #else
-    strncpy(ip, "0.0.0.0", count);
+    strncpy(ip, "127.0.0.1", count);
 #endif
     return 1;
 }

@@ -148,6 +148,7 @@
     <ClCompile Include="cvector.c" />
     <ClCompile Include="ftp_nobody.c" />
     <ClCompile Include="ftp_proto.c" />
+    <ClCompile Include="netutils.c" />
     <ClCompile Include="parse_conf.c" />
     <ClCompile Include="priv_command.c" />
     <ClCompile Include="priv_sock.c" />
@@ -167,6 +168,7 @@
     <ClInclude Include="ftp_nobody.h" />
     <ClInclude Include="ftp_proto.h" />
     <ClInclude Include="hash.h" />
+    <ClInclude Include="netutils.h" />
     <ClInclude Include="parse_conf.h" />
     <ClInclude Include="priv_command.h" />
     <ClInclude Include="priv_sock.h" />

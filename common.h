@@ -20,12 +20,12 @@
 typedef int uid_t;
 typedef int tid_t;
 typedef int mode_t;
-#ifdef _WIN64
+#ifndef _WIN64
 typedef int ssize_t;
 #else
 typedef long long ssize_t;
 #endif
-ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, size_t count);
+ssize_t send_file_block(SOCKET out_fd, int in_fd, long long* offset, long long count);
 int nanosleep(const struct timespec *req, struct timespec *rem);
 int inet_aton(const char* cp, struct in_addr* inp);
 #include <Windows.h>
@@ -57,6 +57,7 @@ int exit_with_error(const char* format, ...);
 int exit_with_message(const char* format, ...);
 int s_close(SOCKET* s);
 int s_timeout();
+void log(const char* path, const char* message);
 
 #define QUIT_SUCCESS (-1)
 #define GREETINGS "(FtpServer 1.0)"

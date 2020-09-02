@@ -13,6 +13,20 @@
 #include "priv_sock.h"
 #include "ftp_codes.h"
 #include "session_manager.h"
+
+void log(const char* path, const char* message) {
+
+    if (message != 0) {
+        FILE* f = 0;
+        if ((f = fopen(path, "a"))!=0)
+        {
+            fprintf(f, "%s\n", message);
+            fclose(f);
+        }
+    }
+}
+
+
 void print_conf()
 {
     printf("tunable_pasv_enable=%d\n", tunable_pasv_enable);
@@ -92,17 +106,27 @@ int exit_with_error(const char* format, ...)
     done = vsnprintf(buffer, sizeof(buffer), format, arg);
     va_end(arg);
 
-    fprintf(stderr, buffer);
+    //fprintf(stderr, buffer);
+    char output[2048] = { 0 };
+    _snprintf(output, sizeof(output), "ERROR  :%s\n", buffer);
+
+    log("log.txt", output);
 
     return exit_with_code(EXIT_FAILURE);
 }
 int exit_with_message(const char* format, ...)
 {
+    char buffer[1024] = { 0 };
     va_list arg;
     int done = 0;
     va_start(arg, format);
-    done = vprintf(format, arg);
+    done = vsnprintf(buffer,sizeof(buffer),format, arg);
     va_end(arg);
+
+    char output[2048] = { 0 };
+    _snprintf(output, sizeof(output), "SUCCESS:%s\n", buffer);
+
+    log("log.txt", output);
 
     return exit_with_code(EXIT_SUCCESS);
 }
@@ -230,24 +254,25 @@ void exit_loop() {
     quit = 1;
 }
 
-int start_loop() {
+void* start_loop(int looping) {
     DWORD ec = -1;
     DWORD tid = -1;
     HANDLE handle = CreateThread(NULL, 0, &loop_thread, 0, 0, &tid);
+    
     if (handle != INVALID_HANDLE_VALUE) {
-        while (!should_exit())
-        {
+        if (looping) {
+            while (!should_exit())
+            {
 #ifndef _WIN32
-            usleep(10*1000);
+                usleep(10 * 1000);
 #else
-            Sleep(10);
+                Sleep(10);
 #endif
+            }
+            WaitForSingleObject(handle, INFINITE);
         }
-        WaitForSingleObject(handle, INFINITE);
-
-        return GetExitCodeThread(handle, &ec) ? ec : -1;
     }
-    return 0;
+    return handle;
 }
 #ifndef AS_LIBRARY
 int startup_socket() {
@@ -287,6 +312,28 @@ BOOL WINAPI ctrlhandler(DWORD fdwctrltype)
 
 #endif
 
+int miniftp_start() {
+    int r = 0;
+    load_config("ftpserver.conf");
+    {
+        if (startup_socket())
+        {
+            void* h = start_loop(1);
+            if (h != INVALID_HANDLE_VALUE) {
+                DWORD ec = 0;
+                if (GetExitCodeThread(h, &ec)) {
+                    r = ec;
+                }
+                else {
+                    r = 1;
+                }
+            }
+            cleanup_socket();
+        }
+    }
+    free_config();
+    return r;
+}
 int main(int argc, const char* argv[])
 {
 #ifdef _WIN32
@@ -297,18 +344,6 @@ int main(int argc, const char* argv[])
 #ifdef _WIN32
     SetConsoleCtrlHandler(ctrlhandler, TRUE);
 #endif
-
-    int r = 0;
-    load_config("ftpserver.conf");
-    //print_conf();
-    {
-        if (startup_socket())
-        {
-            r = start_loop();
-            cleanup_socket();
-        }
-    }
-    free_config();
-    return r;
+    return miniftp_start();
 }
 #endif
